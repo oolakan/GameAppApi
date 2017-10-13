@@ -2,10 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Game;
-use App\Role;
 use App\User;
-use App\Winning;
+
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
@@ -21,14 +19,9 @@ class UserController extends Controller
     {
         try {
             $Users = User::with('role')->get();
-            $Admins = User::with('role')->where('roles_id', '=', 1)->get();
-            $Merchants = User::with('role')->where('roles_id', '=', 2)->get();
-            $Agents = User::with('role')->where('roles_id', '=', 3)->get();
-            $Games = Game::all();
-            $Winnings = Winning::all();
-            return view('user.index', compact(['Admins', 'Merchants', 'Agents', 'Games', 'Winnings', 'Users']));
+            return response()->json(['Users' => $Users]);
         }catch (\ErrorException $ex){
-            $ex->getMessage();
+            return response()->json(['ErrorMessage'=>$ex->getMessage()]);
         }
     }
     /**
