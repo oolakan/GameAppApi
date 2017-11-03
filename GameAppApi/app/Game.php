@@ -14,11 +14,10 @@ class Game extends Model
     protected $fillable = [
         'game_status',
         'game_names_id',
-        'game_types_id',
-        'game_type_options_id',
         'game_quaters_id',
         'start_time',
         'stop_time',
+        'draw_time',
         'users_id',
     ];
 
@@ -28,22 +27,6 @@ class Game extends Model
      */
     public function game_name(){
         return $this->hasOne(GameName::class, 'id', 'game_names_id');
-    }
-
-    /**
-     * @return \Illuminate\Database\Eloquent\Relations\HasOne
-     * Game type
-     */
-    public function game_type(){
-        return $this->hasOne(GameType::class, 'id', 'game_types_id');
-    }
-
-    /**
-     * @return \Illuminate\Database\Eloquent\Relations\HasOne
-     * Game type option
-     */
-    public function game_type_option(){
-        return $this->hasOne(GameTypeOption::class, 'id', 'game_type_options_id');
     }
 
     /**

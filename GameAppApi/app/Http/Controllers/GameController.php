@@ -2,22 +2,19 @@
 
 namespace App\Http\Controllers;
 
-
-use App\Credit;
 use App\Game;
 use App\GameName;
 use App\GameQuater;
 use App\GameType;
 use App\GameTypeOption;
-use App\Role;
-use App\User;
-use App\Winning;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Http\Request;
 
 class GameController extends Controller
 {
+
+    private $message;
+    private $status;
     /**
      * Display a listing of the resource.
      *
@@ -27,31 +24,19 @@ class GameController extends Controller
     public function index()
     {
         try {
-            $Users = User::with(['role', 'credit'])->get();
-            $Admins = User::with('role')->where('roles_id', '=', 1)->get();
-            $Merchants = User::with('role')->where('roles_id', '=', 2)->get();
-            $Agents = User::with('role')->where('roles_id', '=', 3)->get();
-            $Games = Game::all();
             $GameNames = GameName::all();
             $GameTypes = GameType::all();
             $GameTypeOptions = GameTypeOption::all();
             $GameQuaters = GameQuater::all();
-            $Winnings = Winning::all();
-            return view('game.game.index', compact([
-                'Admins', 'Merchants', 'Agents',
-                'Games', 'GameNames', 'GameTypes', 'Winnings',
-                'GameQuaters', 'GameTypeOptions', 'Users']));
-        }catch (\ErrorException $ex){
-            $ex->getMessage();
+            return response()->json(['GameNames' => $GameNames, 'GameTypes' => $GameTypes,
+                'GameTypeOptions' => $GameTypeOptions,
+                'GameQuaters' => $GameQuaters]);
+        } catch (\ErrorException $ex){
+            response()->json(['mesage' => $ex->getMessage()]);
         }
     }
-    /**
-     * Store a newly created resource in storage.
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\Response
-     */
-    public function store(Request $request)
-    {
+
+    public function gameInfo(Request $request) {
         try{
             $rules = [
                 'game_names_id' => 'required',
@@ -61,67 +46,52 @@ class GameController extends Controller
             ];
             $validator = Validator::make($request->all(), $rules);
             if ($validator->fails()) {
-                return back()
-                    ->withInput()
-                    ->withErrors($validator);
+               return response()->json(['message' => 'Input Error']);
             }
-            $Game   =   new Game();
-            $Game->create($request->all());
-            flash()->success('Game information created successfully');
-            return redirect()->action('GameController@index');
-//            if($Game){
-//                flash()->success('Game information created successfully');
-//                return redirect()->action('GameController@index');
-//            }
+            $GameInfo   =   Game::where('game_names_id', '=', $request->game_names_id)
+                ->where('game_types_id', '=', $request->game_types_id)
+                ->where('game_type_options_id', '=', $request->game_type_options_id)
+                ->where('game_quaters_id', '=', $request->game_quaters_id)
+                ->get();
+            if($GameInfo) {
+                $this->message = 'Successful';
+                $this->status = 200;
+                return response()->json(['GameInfo' => $GameInfo, 'status' => $this->status, 'message' => $this->message]);
+            }
+            else{
+                $this->message = 'No data';
+                $this->status = 201;
+                return response()->json(['GameInfo' => $GameInfo, 'status' => $this->status, 'message' => $this->message]);
+            }
         }
-        catch(\ErrorException$ex){
-            flash()->error($ex->getMessage());
-            return redirect()->action('GameController@index');
+        catch(\ErrorException $ex){
+            $this->message = $ex->getMessage();
+            $this->status = 201;
+            return response()->json(['GameInfo' => [], 'status' => $this->status, 'message' => $this->message]);
+        }
 
+    }
+    public function checkGameAvailability(Request $request ) {
+        $Game   =   Game::where('game_names_id', '=', $request->game_names_id)
+                            ->where('game_quaters_id', '=', $request->game_quaters_id)
+                            ->first();
+        if ($Game) {
+            if ($Game->game_status == 0) {
+                $this->message = 'Game is opened';
+                $this->status  = 200;
+                return response()->json(array('message' => $this->message, 'status' => $this->status));
+            }
+            else{
+                $this->message = 'Game is closed';
+                $this->status  = 202;
+                return response()->json(array('message' => $this->message, 'status' => $this->status));
+            }
+        }
+        else{
+            $this->message = 'This game is not available now, contact the administrator';
+            $this->status  = 203;
+            return response()->json(array('message' => $this->message, 'status' => $this->status));
         }
     }
 
-
-    /**
-     * Store a newly created resource in storage.
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\Response
-     */
-    public function update(Request $request, $id)
-    {
-        try{
-            $rules = [
-                'game_names_id' => 'required',
-                'game_types_id' => 'required',
-                'game_type_options_id' => 'required',
-                'game_quaters_id' => 'required',
-            ];
-            $validator = Validator::make($request->all(), $rules);
-            if ($validator->fails()) {
-                return back()
-                    ->withInput()
-                    ->withErrors($validator);
-            }
-            $Game                   =   Game::find(base64_decode($id));
-            $Game->update($request->all());
-            $Game->save();
-            if($Game){
-                flash()->success('Credit balance updated successfully');
-                return redirect()->action('GameController@index');
-            }
-        }
-        catch(\ErrorException$ex){
-            $ex->getMessage();
-        }
-    }
-
-    /**
-     * @param $id
-     * @return \Illuminate\Http\RedirectResponse
-     * Destroy game
-     */
-    public function destroy($id){
-        Game::destroy(base64_decode($id));
-        return redirect()->action('GameController@index');
-    }
 }

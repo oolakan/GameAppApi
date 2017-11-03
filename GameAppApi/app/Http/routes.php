@@ -21,57 +21,31 @@ $app->group(['prefix' => 'dashboard'], function($app){
 
 
 //users
-$app->group(['prefix'  =>  'users'], function($app){
+
+$app->group(['prefix'  =>  'v1/users','namespace' => 'App\Http\Controllers'], function($app){
     $app->get('/', 'UserController@index');
-    $app->get('/create', 'UserController@create');
-    $app->post('/update/{id}', 'UserController@update');
-    $app->get('/delete/{id}', 'UserController@destroy');
-    $app->post('/store', 'UserController@store');
+    $app->get('/{id}', 'UserController@getUser');
+    $app->post('/otp', 'UserController@createOtpForSignUp');
+    $app->post('/otp/password_reset', 'UserController@createOtpForPasswordReset');
+    $app->post('/register/{id}', 'UserController@completeUserRegistration');
+    $app->post('/login', 'UserController@loginUser');
+    $app->post('/reset_password', 'UserController@resetPassword');
+    $app->put('/{id}', 'UserController@updateUser');
+    $app->delete('/{id}', 'UserController@deleteUser');
+    $app->get('/transaction/{id}', 'UserController@getTransactions');
 });
 
 
 //credit balance
-$app->group(['prefix'  =>  'credit'], function($app){
+$app->group(['prefix'  =>  'v1/credit', 'namespace' => 'App\Http\Controllers'], function($app){
     $app->get('/', 'CreditController@index');
     $app->post('/storeOrUpdate', 'CreditController@storeOrUpdate');
 });
 
 //game name
-$app->group(['prefix'  =>  'game_name'], function($app){
-    $app->get('/', 'GameNameController@index');
-    $app->post('/store', 'GameNameController@store');
-    $app->post('/update/{id}', 'GameNameController@update');
-    $app->post('/delete/{id}', 'GameNameController@destroy');
+$app->group(['prefix'  =>  'v1/game', 'namespace' => 'App\Http\Controllers'], function($app){
+    $app->get('/', 'GameController@index');
+    $app->post('/gameInfo', 'GameController@gameInfo');
+    $app->get('/transactions', 'GameTransactionsController@index');
+    $app->post('/gameAvailability', 'GameController@checkGameAvailability');
 });
-
-//game type
-$app->group(['prefix'  =>  'game_type'], function($app){
-    $app->get('/', 'GameTypeController@index');
-    $app->post('/store', 'GameTypeController@store');
-    $app->post('/update/{id}', 'GameTypeController@update');
-    $app->post('/delete/{id}', 'GameTypeController@destroy');
-});
-//
-////game type option
-//Route::group(['prefix'  =>  'game_type_option'], function(){
-//    Route::get('/', 'GameTypeOptionsController@index')->middleware('auth');
-//    Route::post('/store', 'GameTypeOptionsController@store')->middleware('auth');
-//    Route::post('/update/{id}', 'GameTypeOptionsController@update')->middleware('auth');
-//    Route::post('/delete/{id}', 'GameTypeOptionsController@destroy')->middleware('auth');
-//});
-//
-////game type option
-//Route::group(['prefix'  =>  'game_quater'], function(){
-//    Route::get('/', 'GameQuaterController@index')->middleware('auth');
-//    Route::post('/store', 'GameQuaterController@store')->middleware('auth');
-//    Route::post('/update/{id}', 'GameQuaterController@update')->middleware('auth');
-//    Route::post('/delete/{id}', 'GameQuaterController@destroy')->middleware('auth');
-//});
-//
-////game full Information
-//Route::group(['prefix'  =>  'game'], function(){
-//    Route::get('/', 'GameController@index')->middleware('auth');
-//    Route::post('/store', 'GameController@store')->middleware('auth');
-//    Route::post('/update/{id}', 'GameController@update')->middleware('auth');
-//    Route::post('/delete/{id}', 'GameController@destroy')->middleware('auth');
-//});
