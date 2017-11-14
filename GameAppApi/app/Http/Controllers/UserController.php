@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Agent;
 use App\Game;
 use App\GameTransaction;
 use App\Otp;
 use App\User;
+use Illuminate\Hashing\BcryptHasher;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
@@ -23,17 +25,14 @@ class UserController extends Controller
     private $new_password;
     private $sms_url;
     private $recipient_phone;
-//    private $username = 'info@parcel-it.com';
-//    private $password = 'parceladmin';
-//    private $sms_base_url = 'http://login.betasms.com';
-
     private $username = 'asenimegregory@gmail.com';
     private $password = 'parceladmin';
     private $sms_api_key = 'e066554019bbd1ea31e4ae6d1fef362a5bc81dbf';
 
 
     private $sms_sender = 'LottoStars';
-    private $NOT_APPROVED = 'NOT APPROVED';
+    private $PENDING = 'PENDING';
+    private $BLOCKED = 'BLOCKED';
     private $APPROVED = 'APPROVED';
 
     private $user;
@@ -60,22 +59,22 @@ class UserController extends Controller
 
         $User                           =   new User();
         $api_token                      =   $this->randomKey(50);
-        $hashedPassword                 =   app('hash')->make($request->password);
+        $hashedPassword                 =   md5($request->password);
         $User->updateOrCreate(['phone'  => $request->phone],
             [   'name'                  => $request->name,
                 'email'                 => $request->email,
                 'location'              => $request->location,
                 'phone'                 =>  $request->phone,
-                'approval_status'       => $this->NOT_APPROVED,
+                'approval_status'       => $this->PENDING,
                 'password'              => $hashedPassword,
                 'api_token'             => $api_token,
             ]);
         // get user
         $this->user                     =  User::find($id);
-        $this->status_code = 201;//
+        $this->status_code = 200;//
         $this->message = 'Request successfully served';
         //Send sms
-        $message = "Thanks for joining LottoStars. Download the app from playstore and login with \nEmail:" . $this->recipient_email . " and password";
+        $message = "Thanks for joining LottoStars. Download the app from playstore and login with \nEmail:" . $request->email . " and your password";
         $message    =   preg_replace('/\s/','%20', $message);
         $this->recipient_phone = $request->phone;
         $this->sms_url = 'http://api.ebulksms.com:8080/sendsms?username=' . $this->username . '&apikey=' . $this->sms_api_key . '&messagetext=' . $message . '&sender=LottoStars&flash=0&recipients=' . $this->recipient_phone;
@@ -99,6 +98,51 @@ class UserController extends Controller
         $User = User::all();
         return response()->json(array('Users' => $User));
     }
+
+    public function agents($mid) {
+        try {
+            $Agents = Agent::where('merchants_id', '=', $mid)->get();
+            if (count($Agents) > 0){
+                $this->status_code = 200;
+                $this->message = 'success';
+                return response()->json(array('message' => $this->message, 'status' => $this->status_code, 'Agents' => $Agents));
+            }
+            else{
+                $this->status_code = 201;
+                $this->message = 'no user available';
+                return response()->json(array('message' => $this->message, 'status' => $this->status_code));
+            }
+        }
+        catch (\ErrorException $exception) {
+            $this->status_code = 400;
+            $this->message = 'failed';
+            return response()->json(array('message' => $this->message, 'status' => $this->status_code));
+        }
+    }
+
+    public function changeStatus($uid, $status) {
+        try {
+            $User = User::find($uid);
+            $User->approval_status = $status;
+            $User->save();
+            if ($User) {
+                $this->status_code = 200;
+                $this->message = $User->name. ' has been '.strtolower($status);
+                return response()->json(array('status' => $this->status_code, 'message' => $this->message));
+            } else {
+                $this->status_code = 200;
+                $this->message = 401;
+                return response()->json(array('status' => $this->status_code, 'message' => $this->message));
+            }
+        }
+        catch (\ErrorException $exception) {
+            $this->status_code = 200;
+            $this->message = 401;
+            return response()->json(array('status' => $this->status_code, 'message' => $this->message));
+        }
+    }
+
+
     /**
      * @param Request $request
      * @return \Illuminate\Http\JsonResponse|\Symfony\Component\HttpFoundation\Response
@@ -108,18 +152,13 @@ class UserController extends Controller
     public function resetPassword(Request $request){
         $this->user = User::find($request->users_id);
         if($this->user){
-            $hashedPassword                 =   app('hash')->make($request->password);
+            $hashedPassword                 =   md5($request->new_password);
             $this->user->password = $hashedPassword;
             $this->user->save();
             $this->status_code = 200;
-            $this->message = 'You have successfully changed your password. You can now login with your new password.';
+            $this->message = 'You have successfully changed your password. Proceed to home page';
             $this->recipient_email  =   $this->user->email;
             $this->recipient_name   =   $this->user->name;
-//            //Send email notification
-//            Mail::send('emails.new_password', [ 'uname' => $this->recipient_name], function ($m) {
-//                $m->from($this->sender, $this->msg_title);
-//                $m->to($this->recipient_email, $this->recipient_name)->subject($this->subject);
-//            });
             return response()->json(array('UserData' => $this->user, 'status' => $this->status_code, 'message' => $this->message));
         }
         else{
@@ -137,16 +176,27 @@ class UserController extends Controller
 
     public function loginUser(Request $request)
     {
-        $hashedPassword      =   app('hash')->make($request->password);
         $User = DB::table('users')
             ->where('email', '=', $request->email)
-            ->where('password', '=', $hashedPassword)
-            ->where('approval_status', '=', $this->APPROVED)
+            ->where('password', '=', md5($request->password))
             ->first();
-        if(count($User)   >   0){
-            $this->status_code = 200;
-            $this->message = 'Login Successful';
-            return response()->json(array('status' => $this->status_code, 'message' => $this->message, 'UserData' => $User));
+        if($User){
+            if ($User->approval_status == $this->APPROVED) {
+                $this->status_code = 200;
+                $this->message = 'Login Successful';
+                return response()->json(array('status' => $this->status_code, 'message' => $this->message, 'UserData' => $User));
+            }
+            else if ($User->approval_status == $this->BLOCKED){
+                $this->status_code = 203;
+                $this->message = 'Your account has been blocked. Contact the administrator';
+                return response()->json(array('status' => $this->status_code, 'message' => $this->message, 'UserData' => $User));
+            }
+            else if ($User->approval_status == $this->PENDING){
+                $this->status_code = 202;
+                $this->message = 'Your account is pending. Contact the administrator';
+                return response()->json(array('status' => $this->status_code, 'message' => $this->message, 'UserData' => $User));
+            }
+
         }
         else{
             $this->status_code = 201;//
@@ -303,7 +353,7 @@ class UserController extends Controller
     public function sendOtp(Request $request, $message)
     {
         $User = User::where('phone', '=', $request->phone)->first();
-        if ($User) {
+        if (count($User) > 0) {
             $this->user = User::find($User->id);
         } else {
             $this->user = new User();

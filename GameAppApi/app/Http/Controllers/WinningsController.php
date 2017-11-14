@@ -2,18 +2,37 @@
 
 namespace App\Http\Controllers;
 
+use App\GameTransaction;
 use Illuminate\Http\Request;
 
 class WinningsController extends Controller
 {
+    private $WON = 'WON';
+    private $Transactions;
     /**
      * Display a listing of the resource.
      *
      * @return \Illuminate\Http\Response
      */
-    public function index()
+    public function index($id, $from, $to, $status)
     {
-        //
+        try {
+            if ($status == 1) {
+                $this->Transactions = GameTransaction::with(['game_name', 'game_type', 'game_type_option'])
+                    ->where('users_id', '=', $id)
+                    ->whereBetween('date_played', array($from, $to))
+                    ->where('status', '=', $this->WON)->get();
+                return response()->json(['Transactions' => $this->Transactions]);
+            }
+            else {
+                $this->Transactions = GameTransaction::with(['game_name', 'game_type', 'game_type_option'])
+                    ->where('users_id', '=', $id)
+                    ->whereBetween('date_played', array($from, $to))->get();
+                return response()->json(['Transactions' => $this->Transactions]);
+            }
+        }catch (\ErrorException $ex){
+            response()->json(['message' => $ex->getMessage()]);
+        }
     }
 
     /**

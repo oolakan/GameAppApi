@@ -13,15 +13,35 @@ class GameTransactionsController extends Controller
      * @return \Illuminate\Http\Response
      */
 
+    private $status;
+    private $message;
     public function index()
     {
         try {
-            $Transactions       = GameTransaction::with(['game_name', 'game_type', 'game_type_option', 'game_quater'])->get();
+            $Transactions       = GameTransaction::with(['game_name', 'game_type', 'game_type_option'])->get();
             return response()->json(['Transactions' => $Transactions]);
         }catch (\ErrorException $ex){
             response()->json(['message' => $ex->getMessage()]);
         }
     }
+
+    public function transactions($id, $from, $to)
+    {
+        try {
+            $Transactions       = GameTransaction::with(['game_name', 'game_type', 'game_type_option'])
+                ->where('users_id', '=', $id)
+                ->whereBetween('date_played', array($from, $to))->get();
+
+            $TotalAmount       = GameTransaction::with(['game_name', 'game_type', 'game_type_option'])
+                ->where('users_id', '=', $id)
+                ->whereBetween('date_played', array($from, $to))->sum('total_amount');
+
+            return response()->json(['Transactions' => $Transactions, 'id'=>$id, 'from'=>$from, 'to'=> $to, 'total_amount' => number_format($TotalAmount, '2', '.', ',')]);
+        }catch (\ErrorException $ex){
+            response()->json(['message' => $ex->getMessage()]);
+        }
+    }
+
 
     /**
      * Show the form for creating a new resource.
@@ -41,7 +61,25 @@ class GameTransactionsController extends Controller
      */
     public function store(Request $request)
     {
-        //
+        $transactions = $request->json()->all();
+        try {
+            foreach ($transactions as $transaction) {
+                $Transaction = new GameTransaction();
+                $Transaction->create($transaction);
+                if ($Transaction) {
+                    $this->status = 200;
+                    $this->message = 'success';
+                } else {
+                    $this->status = 400;
+                    $this->message = 'failed';
+                }
+            }
+            return response()->json(array('status' => $this->status, 'message' => $this->message));
+        }catch (\Exception $exception) {
+            $this->status = 401;
+            $this->message = $exception->getMessage();
+            return response()->json(array('status' => $this->status, 'message' => $this->message));
+        }
     }
 
     /**

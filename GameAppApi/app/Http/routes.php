@@ -33,6 +33,8 @@ $app->group(['prefix'  =>  'v1/users','namespace' => 'App\Http\Controllers'], fu
     $app->put('/{id}', 'UserController@updateUser');
     $app->delete('/{id}', 'UserController@deleteUser');
     $app->get('/transaction/{id}', 'UserController@getTransactions');
+    $app->get('/agent/{mid}', 'UserController@agents');
+    $app->get('/agent/{status}/{uid}', 'UserController@changeStatus');
 });
 
 
@@ -47,5 +49,22 @@ $app->group(['prefix'  =>  'v1/game', 'namespace' => 'App\Http\Controllers'], fu
     $app->get('/', 'GameController@index');
     $app->post('/gameInfo', 'GameController@gameInfo');
     $app->get('/transactions', 'GameTransactionsController@index');
+    $app->get('/transactions/{id}/{from}/{to}', 'GameTransactionsController@transactions');
     $app->post('/gameAvailability', 'GameController@checkGameAvailability');
+    $app->post('/save/transactions', 'GameTransactionsController@store');
+    $app->get('/validate_game/{serial_no}', 'GameController@validateGame');
+});
+
+//credit balance
+$app->group(['prefix'  =>  'v1/winnings', 'namespace' => 'App\Http\Controllers'], function($app){
+    $app->get('/view/{id}/{from}/{to}/{status}', 'WinningsController@index');
+    $app->post('/storeOrUpdate', 'CreditController@storeOrUpdate');
+});
+
+//credit balance
+$app->group(['prefix'  =>  'v1/credit', 'namespace' => 'App\Http\Controllers'], function($app){
+    $app->get('/{id}', 'CreditController@index');
+    $app->get('/balance/{id}/{credit}', 'CreditController@deductCredit');
+    $app->get('/update/{aid}/{uid}/{amount}', 'CreditController@updateCredit');
+
 });

@@ -1,6 +1,7 @@
 <?php
 
 namespace App\Http\Controllers;
+use App\Agent;
 use App\Credit;
 use App\Game;
 use App\Role;
@@ -18,50 +19,96 @@ class CreditController extends Controller
      * @return \Illuminate\Http\Response
      */
 
-    public function index()
+    private $status;
+    private $message;
+    private $user_credit_id;
+    private $Credit;
+    public function index($uid)
     {
         try {
-            $Users = User::with(['role', 'credit'])->get();
-            $Admins = User::with('role')->where('roles_id', '=', 1)->get();
-            $Merchants = User::with('role')->where('roles_id', '=', 2)->get();
-            $Agents = User::with('role')->where('roles_id', '=', 3)->get();
-            $Games = Game::all();
-            $Winnings = Winning::all();
-            return view('credit.index', compact(['Admins', 'Merchants', 'Agents', 'Games', 'Winnings', 'Users']));
-        }catch (\ErrorException $ex){
-            $ex->getMessage();
+            $this->status = 200;
+            $this->message = 'success';
+            $Credit = Credit::where('users_id', '=', $uid)->first();
+            return response()->json(array('status' => $this->status, 'message' => $this->message, 'Credit' => $Credit));
+        } catch (\ErrorException $ex) {
+            $this->status = 400;
+            $this->message = 'failed';
+            return response()->json(array('status' => $this->status, 'message' => $this->message));
         }
     }
-    /**
-     * Store a newly created resource in storage.
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\Response
-     */
-    public function storeOrUpdate(Request $request)
+
+    public function deductCredit($uid, $credit) {
+        try {
+            $this->status = 200;
+            $this->message = 'success';
+            $Credit = Credit::where('users_id', '=', $credit)->first();
+            $creditBalance = $Credit->amount - $uid;
+            $NewCredit = Credit::find($Credit->id);
+            $NewCredit->amount = $creditBalance;
+            $NewCredit->save();
+            if ($Credit) {
+                return response()->json(array('status' => $this->status, 'uid'=> $uid, 'message' => $this->message,  'Credit' => $NewCredit));
+            }
+        } catch (\ErrorException $ex) {
+            $this->status = 400;
+            $this->message = 'failed';
+            return response()->json(array('status' => $this->status, 'message' => $ex->getMessage()));
+        }
+    }
+
+    public function updateCredit($aid, $uid, $amount)
     {
-        try{
-            $rules = [
-                'amount' => 'required',
-            ];
-            $validator = Validator::make($request->all(), $rules);
-            if ($validator->fails()) {
-                return back()
-                    ->withInput()
-                    ->withErrors($validator);
+        try {
+            $_Credit = Credit::where('users_id', '=', $aid)->first();
+            if ($_Credit) {
+                $this->user_credit_id = $_Credit->id;
+                $this->Credit = Credit::find($this->user_credit_id);
+                $this->Credit->amount = $amount + $_Credit->amount;
+            } else {
+                $this->Credit = new Credit();
+                $this->Credit->amount = $amount;
             }
-            $Credit                 =   new Credit();
-            $Credit->updateOrCreate(['users_id' => $request->users_id],
-                [   'amount' => $request->amount,
-                    'funded_by' => Auth::user()->id,
-                    'users_id' => $request->users_id
-                ]);
-            if($Credit){
-                flash()->success('Credit balance updated successfully');
-                return redirect()->action('CreditController@index');
+
+            $this->Credit->funded_by = $uid;
+            $this->Credit->users_id = $aid;
+            $this->merchants_id = $uid;
+            $this->Credit->save();
+
+            $_Agent = Agent::where('users_id', '=', $aid)->first();
+            $Agent = Agent::find($_Agent->id);
+            $Agent->credit_balance = $amount + $_Agent->credit_balance;
+            $Agent->save();
+
+            if ($this->Credit) {
+                $this->status = 200;
+                $this->message = 'Credit balance updated successfully';
+                return $this->agents($uid, $this->message);
+                // return response()->json(array('status' => $this->status, 'message' => $this->message));
+            } else {
+                $this->status = 401;
+                $this->message = 'failed to update credit status';
+                return response()->json(array('status' => $this->status, 'message' => $this->message));
             }
         }
-        catch(\ErrorException$ex){
-            $ex->getMessage();
+        catch (\ErrorException $exception) {
+            $this->status = 400;
+            $this->message = 'failed';
+            return response()->json(array('status' => $this->status, 'message' => $exception->getMessage()));
         }
     }
+
+    public function agents($mid, $message) {
+        try {
+            $Agents = Agent::where('merchants_id', '=', $mid)->get();
+            $this->status = 200;
+            return response()->json(array('message' => $message, 'status' => $this->status, 'Agents' => $Agents));
+        }
+        catch (\ErrorException $exception) {
+            $this->status_code = 400;
+            $this->message = 'failed to fetch';
+            return response()->json(array('message' => $this->message, 'status' => $this->status));
+        }
+    }
+
+
 }

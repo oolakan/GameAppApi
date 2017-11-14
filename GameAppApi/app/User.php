@@ -12,7 +12,7 @@ class User extends Model {
      * @var array
      */
     protected $fillable = [
-        'name', 'email', 'phone', 'location', 'approval_status', 'password','api_token',
+        'name', 'email', 'phone', 'location', 'approval_status', 'ticket_id', 'password','api_token', 'approval_status'
     ];
 
     /**
@@ -39,4 +39,9 @@ class User extends Model {
     public function credit() {
         return $this->hasOne(Credit::class, 'users_id', 'id');
     }
+
+    public function agent() {
+        return $this->hasMany(Agent::class, 'merchants_id', 'id');
+    }
+
 }

@@ -8,16 +8,23 @@ class GameTransaction extends Model
 {
     protected $fillable = [
         'game_no_played',
+        'no_of_matched_figures',
         'ticket_id',
         'serial_no',
-        'amount_paid',
+        'unit_stake',
+        'total_amount',
+        'winning_amount',
+        'game_names_id',
+        'game_types_id',
         'game_type_options_id',
+        'game_quaters_id',
         'users_id',
+        'date_played',
         'time_played',
         'payment_option',
+        'time_played',
         'status',
     ];
-
 
     /**
      * @return \Illuminate\Database\Eloquent\Relations\HasOne
