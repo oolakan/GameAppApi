@@ -15,4 +15,7 @@ class Agent extends Model
         'merchants_id',
     ];
 
+    public function user() {
+        return $this->hasOne(User::class, 'id', 'users_id');
+    }
 }

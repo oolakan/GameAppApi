@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class GameTransaction extends Model
 {
     protected $fillable = [
+        'banker_no',
         'game_no_played',
         'no_of_matched_figures',
         'ticket_id',
@@ -24,6 +25,7 @@ class GameTransaction extends Model
         'payment_option',
         'time_played',
         'status',
+        'draw_type'
     ];
 
     /**

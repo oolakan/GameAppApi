@@ -25,12 +25,14 @@ class UserController extends Controller
     private $new_password;
     private $sms_url;
     private $recipient_phone;
-    private $username = 'asenimegregory@gmail.com';
-    private $password = 'parceladmin';
+
     private $sms_api_key = 'e066554019bbd1ea31e4ae6d1fef362a5bc81dbf';
 
 
-    private $sms_sender = 'LottoStars';
+    private $username = 'oolakan@yahoo.com';
+    private $password = 'Oluwatobi43';
+    private $sms_base_url = 'http://login.betasms.com';
+    private $sms_sender = 'RASHOLINV';
     private $PENDING = 'PENDING';
     private $BLOCKED = 'BLOCKED';
     private $APPROVED = 'APPROVED';
@@ -40,12 +42,12 @@ class UserController extends Controller
     {}
     //create otp
     public function createOtpForSignUp(Request $request){
-        $message = 'Your account verification code is: ';
+        $message = 'Use this OTP to confirm your phone number ';
         return $this->sendOtp($request, $message);
     }
 
     public function createOtpForPasswordReset(Request $request){
-        $message = 'Your password reset code is: ';
+        $message = 'Use this OTP to confirm your phone number  ';
         return $this->sendOtp($request, $message);
     }
 
@@ -56,36 +58,55 @@ class UserController extends Controller
      */
     public function completeUserRegistration(Request $request, $id)
     {
+        $rules = [
+            'email'     => 'required|email|max:255|unique:users',
+        ];
+        $validator = Validator::make($request->all(), $rules);
+        if ($validator->fails()) {
+            return response()->json(['status'=> 400, 'message' => 'Email already exist']);
+        }
+        $hashedPassword = md5($request->password);
 
-        $User                           =   new User();
-        $api_token                      =   $this->randomKey(50);
-        $hashedPassword                 =   md5($request->password);
-        $User->updateOrCreate(['phone'  => $request->phone],
-            [   'name'                  => $request->name,
-                'email'                 => $request->email,
-                'location'              => $request->location,
-                'phone'                 =>  $request->phone,
-                'approval_status'       => $this->PENDING,
-                'password'              => $hashedPassword,
-                'api_token'             => $api_token,
-            ]);
-        // get user
-        $this->user                     =  User::find($id);
-        $this->status_code = 200;//
-        $this->message = 'Request successfully served';
-        //Send sms
-        $message = "Thanks for joining LottoStars. Download the app from playstore and login with \nEmail:" . $request->email . " and your password";
-        $message    =   preg_replace('/\s/','%20', $message);
-        $this->recipient_phone = $request->phone;
-        $this->sms_url = 'http://api.ebulksms.com:8080/sendsms?username=' . $this->username . '&apikey=' . $this->sms_api_key . '&messagetext=' . $message . '&sender=LottoStars&flash=0&recipients=' . $this->recipient_phone;
-        $this->sms_url = trim($this->sms_url);
-        $this->getContent($this->sms_url);
-        //Send user login details as email
+        $User = User::find($id);
+        if ($User) {
+            $this->user = User::find($User->id);
+            $this->user->phone = $request->phone;
+            $this->user->name = $request->name;
+            $this->user->email = $request->email;
+            $this->user->location = $request->location;
+            $this->user->approval_status = $this->PENDING;
+            $this->user->password = $hashedPassword;
+            $this->api_token = $User->api_token;
+            $this->user->save();
+            // get user
+            if ($this->user) {
+                $Agent = new Agent();
+                $ticket_id              =   $this->generateTicketId();
+                $Agent->users_id = $User->id;
+                $Agent->agent_name = $request->name;
+                $Agent->credit_balance = 0.0;
+                $Agent->ticket_id              =   $ticket_id;
+                $Agent->save();
+                $this->status_code = 200;//
+                $this->message = 'Request successfully served';
+                //Send sms
+                $message = "Thanks for joining LottoStars. Download the app from playstore and login with \nEmail:" . $request->email . " and your password";
+                $message = preg_replace('/\s/', '%20', $message);
+                $this->recipient_phone = $request->phone;
+                $this->sms_url = 'http://api.ebulksms.com:8080/sendsms?username=' . $this->username . '&apikey=' . $this->sms_api_key . '&messagetext=' . $message . '&sender=LottoStars&flash=0&recipients=' . $this->recipient_phone;
+                $this->sms_url = trim($this->sms_url);
+                $this->getContent($this->sms_url);
+                //Send user login details as email
 //        Mail::send('emails.password', ['username' => $this->recipient_email, 'password' => $this->recipient_password], function ($m) {
 //            $m->from($this->sender, $this->msg_title);
 //            $m->to($this->recipient_email, $this->recipient_name)->subject($this->subject);
 //        });
-        return response()->json(array('status' => $this->status_code, 'message' => $this->message, 'UserData' => $this->user));
+                return response()->json(array('status' => $this->status_code, 'message' => $this->message, 'UserData' => $this->user));
+            } else {
+                return response()->json(array('status' => $this->status_code, 'message' => 'failed'));
+            }
+        }
+
     }
 
 
@@ -95,13 +116,13 @@ class UserController extends Controller
      */
     public function index()
     {
-        $User = User::all();
+        $User = User::where('delete_status', '=', 0)->get();
         return response()->json(array('Users' => $User));
     }
 
     public function agents($mid) {
         try {
-            $Agents = Agent::where('merchants_id', '=', $mid)->get();
+            $Agents = Agent::with(['user'])->where('merchants_id', '=', $mid)->where('delete_status', '=', 0)->get();
             if (count($Agents) > 0){
                 $this->status_code = 200;
                 $this->message = 'success';
@@ -128,7 +149,14 @@ class UserController extends Controller
             if ($User) {
                 $this->status_code = 200;
                 $this->message = $User->name. ' has been '.strtolower($status);
-                return response()->json(array('status' => $this->status_code, 'message' => $this->message));
+                //GET merchat id
+                $mid = Agent::where('users_id', '=', $uid)->first()->merchants_id;
+                $Agents = Agent::with(['user'])->where('merchants_id', '=', $mid)->where('delete_status', '=', 0)->get();
+                if (count($Agents) > 0){
+                    $this->status_code = 200;
+                    $this->message = 'success';
+                    return response()->json(array('message' => $this->message, 'status' => $this->status_code, 'Agents' => $Agents));
+                }
             } else {
                 $this->status_code = 200;
                 $this->message = 401;
@@ -179,6 +207,7 @@ class UserController extends Controller
         $User = DB::table('users')
             ->where('email', '=', $request->email)
             ->where('password', '=', md5($request->password))
+            ->where('delete_status', '=', 0)
             ->first();
         if($User){
             if ($User->approval_status == $this->APPROVED) {
@@ -346,19 +375,30 @@ class UserController extends Controller
         }
         return $contents;
     }
+
     /**
      * @param Request $request
      * @return \Symfony\Component\HttpFoundation\Response
      */
+
     public function sendOtp(Request $request, $message)
     {
+        $rules = [
+            'phone' => 'required|unique:users',
+        ];
+        $validator = Validator::make($request->all(), $rules);
+        if ($validator->fails()) {
+            return response()->json(['status'=> 400, 'message' => 'Phone no already exist']);
+        }
         $User = User::where('phone', '=', $request->phone)->first();
-        if (count($User) > 0) {
+        if ($User) {
             $this->user = User::find($User->id);
         } else {
             $this->user = new User();
         }
+        $api_token = $this->randomKey(50);
         $this->user->phone = $request->phone;
+        $this->user->api_token =  $api_token;
         $this->user->roles_id   =   3;//3: agent 2:Merchant 1: Admin
         $this->user->save();
         $this->recipient_phone = $request->phone;
@@ -377,10 +417,9 @@ class UserController extends Controller
         $_message = $message . $otp;
         $_message = preg_replace('/\s/', '%20', $_message);
        // $this->sms_url = $this->sms_base_url . '/api/?username=' . $this->username . '&password=' . $this->password . '&message=' . $_message . '&sender=' . $this->sms_sender . '&mobiles=' . $this->recipient_phone;
-
-        $this->sms_url = 'http://api.ebulksms.com:8080/sendsms?username=' . $this->username . '&apikey=' . $this->sms_api_key . '&messagetext=' . $_message . '&sender=LottoStars&flash=0&recipients=' . $this->recipient_phone;
+        $this->sms_url = $this->sms_base_url . '/api/?username=' . $this->username . '&password=' . $this->password . '&message=' . $_message . '&sender=' . $this->sms_sender . '&mobiles=' . $this->recipient_phone;
         $this->sms_url = trim($this->sms_url);
         $this->getContent($this->sms_url);
-        return response()->json(array('otp' => $OtpCode));
+        return response()->json(array('status'=> 200, 'message' => 'successful', 'otp' => $OtpCode));
     }
 }

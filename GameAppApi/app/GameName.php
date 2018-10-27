@@ -12,7 +12,7 @@ class GameName extends Model
      * @var array
      */
     protected $fillable = [
-        'name', 'days_id', 'start_time', 'stop_time', 'draw_time',
+        'name', 'days_id', 'start_time', 'stop_time', 'draw_time', 'status',
     ];
 
     /**

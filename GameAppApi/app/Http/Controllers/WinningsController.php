@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\GameTransaction;
+use App\Winning;
 use Illuminate\Http\Request;
 
 class WinningsController extends Controller
@@ -31,6 +32,25 @@ class WinningsController extends Controller
                 return response()->json(['Transactions' => $this->Transactions]);
             }
         }catch (\ErrorException $ex){
+            response()->json(['message' => $ex->getMessage()]);
+        }
+    }
+
+    /**
+     * @param $from
+     * @param $to
+     * @return \Illuminate\Http\JsonResponse|\Symfony\Component\HttpFoundation\Response
+     * get winning and machine numbers
+     */
+    public function winningMachineNos($from, $to)
+    {
+        try {
+            $Winnings = Winning::with(['game_name', 'game_type', 'game_type_option'])
+                ->whereBetween('winning_date', array($from, $to))
+                ->get();
+            return response()->json(['Winnings' => $Winnings]);
+        }
+        catch (\ErrorException $ex){
             response()->json(['message' => $ex->getMessage()]);
         }
     }
