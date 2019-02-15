@@ -65,48 +65,47 @@ class GameController extends Controller
         }
     }
 
-
+    /**
+     * @param $day
+     * @param $date
+     * @param $userid
+     * @return \Illuminate\Http\JsonResponse|\Symfony\Component\HttpFoundation\Response
+     * Get game sales transactions
+     */
     public function getGamesStatistics($day, $date, $userid)
     {
         $dayOfWeek = Day::where('name', '=', $day)->first();
         $dayOfWeekId = $dayOfWeek->id;
         $GamesOfDay = GameName::where('days_id', '=', $dayOfWeekId)->get();
+        $main_array = array(); //Your array that you want to push the value into
+        $total = 0;
+        $winning = 0;
+        array_push($main_array, array('name'=> 'Name', 'TotalAmount' => 'Sales',
+            'WinningAmount' => 'Winnings'));
+        for ($i = 0; $i < count($GamesOfDay); $i++) {
+            $TotalAmount = GameTransaction::with(['game_name'])
+                ->where('users_id', '=', $userid)
+                ->where('game_names_id', '=', $GamesOfDay[$i]->id)
+                ->where('date_played','=', $date )->sum('total_amount');
 
-      //  return response()->json($GamesOfDay);
-        $TotalAmount0 = GameTransaction::with(['game_name'])
-            ->where('users_id', '=', $userid)
-            ->where('game_names_id', '=', $GamesOfDay[0]->id)
-            ->where('date_played','=', $date )->sum('total_amount');
-        $GameName0 = $GamesOfDay[0]->name;
+            $WinningAmount = GameTransaction::with(['game_name'])
+                ->where('users_id', '=', $userid)
+                ->where('game_names_id', '=', $GamesOfDay[$i]->id)
+                ->where('date_played','=', $date )->sum('winning_amount');
 
-        $TotalAmount1 = GameTransaction::with(['game_name'])
-            ->where('users_id', '=', $userid)
-            ->where('game_names_id', '=', $GamesOfDay[1]->id)
-            ->where('date_played', '=', $date)->sum('total_amount');
-        $GameName1 = $GamesOfDay[1]->name;
+           // array_push($main_array, array($GamesOfDay[$i]->name => number_format($TotalAmount, 2, '.', ',')));
 
-        $TotalAmount2 = GameTransaction::with(['game_name', 'game_type', 'game_type_option'])
-            ->where('users_id', '=', $userid)
-            ->where('game_names_id', '=', $GamesOfDay[2]->id)
-            ->where('date_played', '=', $date)->sum('total_amount');
-        $GameName2 = $GamesOfDay[2]->name;
+            array_push($main_array, array('name' => $GamesOfDay[$i]->name, 'TotalAmount' => number_format($TotalAmount, 2, '.', ','),
+                'WinningAmount' => $WinningAmount));
 
+            $total += $TotalAmount;
+            $winning += $WinningAmount;
+        }
+        //return response()->json($total);
+        array_push($main_array, array('name'=> 'Total', 'TotalAmount' => number_format($total, 2, '.', ','),
+            'WinningAmount' => number_format($winning, 2, '.', ',')));
 
-        $TotalAmount3 = GameTransaction::with(['game_name', 'game_type', 'game_type_option'])
-            ->where('users_id', '=', $userid)
-            ->where('game_names_id', '=', $GamesOfDay[3]->id)
-            ->where('date_played', '=', $date)->sum('total_amount');
-        $GameName3 = $GamesOfDay[3]->name;
-
-        $total = $TotalAmount1 + $TotalAmount0 + $TotalAmount2 + $TotalAmount3;
-
-        return response()->json([
-            $GameName0 => number_format($TotalAmount0, 2, '.', ','),
-            $GameName1 => number_format($TotalAmount1,2,'.', ','),
-            $GameName2 => number_format($TotalAmount2, 2, '.', ','),
-            $GameName3 => number_format($TotalAmount3, 2, '.', ','),
-            'Total'     =>  number_format($total, 2, '.', ',')
-        ]);
+        return response()->json(array('status' => 200, 'data' => $main_array));
     }
     /**
      * @return \Illuminate\Http\JsonResponse|\Symfony\Component\HttpFoundation\Response
@@ -263,12 +262,19 @@ class GameController extends Controller
                 $unitStake = $this->Transaction->unit_stake;
                 //CHECK IF GAME TYPE IS AGAINST
                 // check if banker number is in winning number
+             //   var_dump($bankerNoArr);
                 if ($gameTypeId == '2') {
                     if ($this->isBankerInWinningNo($winningNoArr, $bankerNoArr, $gameNoArr, $gameOptionId)) {
                         $this->result = array_intersect($winningNoArr, $gameNoArr);
+                        //check if there is at least one number in winning number
                         $this->match_no_count = count($gameNoArr); /**count($this->result) * count($bankerNoArr);**/
                         $this->Transaction->no_of_matched_figures = $this->match_no_count;
-                        $this->winning_amount = $this->winningAmount($this->Transaction->game_types_id, $this->Transaction->game_type_options_id, $this->match_no_count, $unitStake);
+                        if ($this->match_no_count >=1) {
+                            $this->winning_amount = $this->winningAmount($this->Transaction->game_types_id, $this->Transaction->game_type_options_id, $this->match_no_count, $unitStake);
+                        }
+                        else{
+                            $this->winning_amount = 0;
+                        }
                     } else {
                         $this->winning_amount = 0;
                     }
@@ -345,7 +351,9 @@ class GameController extends Controller
                 $amount =  $noOfMatchedFigures * $unitStake  * 5000;
                 return $amount;
             } // AGAINST 3
-
+            /**
+             * One agsint all
+             */
             else if ($oid == 8){
                 $amount = 4 * 1 * $unitStake * 240;
                 return $amount;
@@ -390,37 +398,37 @@ class GameController extends Controller
                 return $amount;
             }// DIRECT 5
         }//DIRECT
+
         return $amount;
     }
     public function isBankerInWinningNo($winningNo, $bankerNo, $gameNoArr, $oid) {
-        $result         =   array_intersect($winningNo, $bankerNo);
-        $match_no_count =   count($result);
-        $gameNoresult   =   array_intersect($winningNo, $gameNoArr);
-        $gameNoresultCount = count($gameNoresult);
-        if ($gameNoresultCount > 0) {
-            if ($oid == 5) {
-                if ($match_no_count == 1)
-                    return true;
-            }//AGAINST 1
-            else if ($oid == 6) {
-                if ($match_no_count == 2)
-                    return true;
-            }// AGAINST 2
-            else if ($oid == 7) {
-                if ($match_no_count == 3)
-                    return true;
-            }// AGAINST 3
-            else if ($oid == 8) {
-                if ($match_no_count == 1)
-                    return true;
-            }// 1 AGAISNT ALL
-            else if ($oid == 9) {
-//                if ($match_no_count == 5)
-                    return false;
-            }// AGAINST 5
+        $result         =   array_intersect($winningNo, $bankerNo); //check if banker no exists
+        $match_no_count =   count($result); //count banker numbers
+        $gameNoresult   =   array_intersect($winningNo, $gameNoArr); //check if game no selected exists
+        $gameNoresultCount = count($gameNoresult); //count game numbers
+        //var_dump($match_no_count);
+        if ($oid == 8) {
+            if ($match_no_count >= 1)
+                return true;
+            else return false;
         }
         else {
-            return false;
+            if ($gameNoresultCount > 0) {
+                if ($oid == 5) {
+                    if ($match_no_count == 1)
+                        return true;
+                }//AGAINST 1
+                else if ($oid == 6) {
+                    if ($match_no_count == 2)
+                        return true;
+                }// AGAINST 2
+                else if ($oid == 7) {
+                    if ($match_no_count == 3)
+                        return true;
+                }// AGAINST 3
+            }
+            else
+                return false;
         }
         return false;
     }

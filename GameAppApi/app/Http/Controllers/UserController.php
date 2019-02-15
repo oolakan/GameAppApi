@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Agent;
 use App\Game;
 use App\GameTransaction;
+use App\Merchant;
 use App\Otp;
 use App\User;
 use Illuminate\Hashing\BcryptHasher;
@@ -209,25 +210,50 @@ class UserController extends Controller
             ->where('password', '=', md5($request->password))
             ->where('delete_status', '=', 0)
             ->first();
-        if($User){
-            if ($User->approval_status == $this->APPROVED) {
-                $this->status_code = 200;
-                $this->message = 'Login Successful';
-                return response()->json(array('status' => $this->status_code, 'message' => $this->message, 'UserData' => $User));
-            }
-            else if ($User->approval_status == $this->BLOCKED){
-                $this->status_code = 203;
-                $this->message = 'Your account has been blocked. Contact the administrator';
-                return response()->json(array('status' => $this->status_code, 'message' => $this->message, 'UserData' => $User));
-            }
-            else if ($User->approval_status == $this->PENDING){
-                $this->status_code = 202;
-                $this->message = 'Your account is pending. Contact the administrator';
-                return response()->json(array('status' => $this->status_code, 'message' => $this->message, 'UserData' => $User));
-            }
 
-        }
-        else{
+
+        if ($User) {
+            //if user is an agent
+            if ($User->roles_id == 3) {
+                $Merch = Agent::where('users_id', '=', $User->id)->first();
+                $merchatid = $Merch->merchants_id;
+                $Merchant = User::find($merchatid);
+                if ($Merchant) {
+                    $MName = $Merchant->name;
+                    if ($User->approval_status == $this->APPROVED) {
+                        $this->status_code = 200;
+                        $this->message = 'Login Successful';
+                        return response()->json(array('status' => $this->status_code, 'message' => $this->message, 'UserData' => $User, 'Merchant' => $MName));
+                    } else if ($User->approval_status == $this->BLOCKED) {
+                        $this->status_code = 203;
+                        $this->message = 'Your account has been blocked. Contact the administrator';
+                        return response()->json(array('status' => $this->status_code, 'message' => $this->message, 'UserData' => $User, 'Merchant' => $MName));
+                    } else if ($User->approval_status == $this->PENDING) {
+                        $this->status_code = 202;
+                        $this->message = 'Your account is pending. Contact the administrator';
+                        return response()->json(array('status' => $this->status_code, 'message' => $this->message, 'UserData' => $User, 'Merchant' => $MName));
+                    }
+                } else {
+                    $this->status_code = 201;//
+                    $this->message = 'Contact admin to be assigned to a merchant';
+                    return response()->json(array('status' => $this->status_code, 'message' => $this->message));
+                }
+            } else {
+                if ($User->approval_status == $this->APPROVED) {
+                    $this->status_code = 200;
+                    $this->message = 'Login Successful';
+                    return response()->json(array('status' => $this->status_code, 'message' => $this->message, 'UserData' => $User, 'Merchant' => $User->name));
+                } else if ($User->approval_status == $this->BLOCKED) {
+                    $this->status_code = 203;
+                    $this->message = 'Your account has been blocked. Contact the administrator';
+                    return response()->json(array('status' => $this->status_code, 'message' => $this->message, 'UserData' => $User, 'Merchant' => $User->name));
+                } else if ($User->approval_status == $this->PENDING) {
+                    $this->status_code = 202;
+                    $this->message = 'Your account is pending. Contact the administrator';
+                    return response()->json(array('status' => $this->status_code, 'message' => $this->message, 'UserData' => $User, 'Merchant' => $User->name));
+                }
+            }
+        } else {
             $this->status_code = 201;//
             $this->message = 'Login credentials does not exist';
             return response()->json(array('status' => $this->status_code, 'message' => $this->message));

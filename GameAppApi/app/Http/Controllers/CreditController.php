@@ -37,22 +37,92 @@ class CreditController extends Controller
         }
     }
 
+    /**
+     * @param $uid
+     * @param $credit
+     * @return \Illuminate\Http\JsonResponse|\Symfony\Component\HttpFoundation\Response
+     * DEDUCT CREDIT FOR GAME PLAYED
+     */
     public function deductCredit($uid, $credit) {
         try {
-            $this->status = 200;
-            $this->message = 'success';
-            $Credit = Credit::where('users_id', '=', $credit)->first();
-            $creditBalance = $Credit->amount - $uid;
-            $NewCredit = Credit::find($Credit->id);
-            $NewCredit->amount = $creditBalance;
-            $NewCredit->save();
-            if ($Credit) {
-                return response()->json(array('status' => $this->status, 'uid'=> $uid, 'message' => $this->message,  'Credit' => $NewCredit));
-            }
+        $this->status = 200;
+        $this->message = 'success';
+        $Credit = Credit::where('users_id', '=', $credit)->first();
+        $creditBalance = $Credit->amount - $uid;
+        $NewCredit = Credit::find($Credit->id);
+        $NewCredit->amount = $creditBalance;
+        $NewCredit->save();
+
+        $_Agent = Agent::where('users_id', '=', $credit)->first();
+        $Agent = Agent::find($_Agent->id);
+        $Agent->credit_balance = $_Agent->credit_balance - $uid;
+        $Agent->save();
+
+        if ($Credit) {
+            return response()->json(array('status' => $this->status, 'uid'=> $uid, 'message' => $this->message,  'Credit' => $NewCredit));
+        }
         } catch (\ErrorException $ex) {
             $this->status = 400;
             $this->message = 'failed';
             return response()->json(array('status' => $this->status, 'message' => $ex->getMessage()));
+        }
+    }
+
+    /**
+     * @param $aid
+     * @param $uid
+     * @param $amount
+     * @return \Illuminate\Http\JsonResponse|\Symfony\Component\HttpFoundation\Response
+     * deduct credit
+     */
+    public function removeCredit($aid, $uid, $amount)
+    {
+        try {
+            $_Credit = Credit::where('users_id', '=', $aid)->first();
+            $Agent = Agent::where('users_id', '=', $aid)->first();
+            $merchantId = $Agent->merchants_id;
+            //check if merchant have enough money in wallet
+            $MerchantBalance = Credit::where('users_id', '=', $merchantId)->first();
+            if ($MerchantBalance) {
+                if ($_Credit) {
+                    $this->user_credit_id = $_Credit->id;
+                    $this->Credit = Credit::find($this->user_credit_id);
+                    $this->Credit->amount = $_Credit->amount - $amount;
+                }
+                $this->Credit->funded_by = $uid;
+                $this->Credit->users_id = $aid;
+                $this->Credit->merchants_id = $uid;
+                $this->Credit->save();
+
+                // credit merchant wallet
+                $MerchantWallet = Credit::find($MerchantBalance->id);
+                $MerchantWallet->amount = $MerchantBalance->amount + $amount;
+                $MerchantWallet->save();
+
+                //deduct agent wallet
+                $_Agent = Agent::where('users_id', '=', $aid)->first();
+                $Agent = Agent::find($_Agent->id);
+                $Agent->credit_balance = $_Agent->credit_balance - $amount;
+                $Agent->save();
+            } else {
+                $this->status = 400;
+                $this->message = 'Insufficient credit balance';
+                return response()->json(array('status' => $this->status, 'message' => $this->message));
+            }
+            if ($this->Credit) {
+                $this->status = 200;
+                $this->message = 'Credit balance updated successfully';
+                return $this->agents($uid, $this->message);
+                // return response()->json(array('status' => $this->status, 'message' => $this->message));
+            } else {
+                $this->status = 401;
+                $this->message = 'failed to update credit status';
+                return response()->json(array('status' => $this->status, 'message' => $this->message));
+            }
+        } catch (\ErrorException $exception) {
+            $this->status = 400;
+            $this->message = 'failed';
+            return response()->json(array('status' => $this->status, 'message' => $exception->getMessage()));
         }
     }
 

@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Agent;
 use App\Credit;
+use App\GameName;
 use App\GameTransaction;
+use App\User;
 use DateTime;
 use Illuminate\Http\Request;
 
@@ -19,6 +21,7 @@ class GameTransactionsController extends Controller {
     private $message;
     private $Transactions;
     private $from = '0000-00-00';
+    private $APPROVED = 'APPROVED';
 
     /**
      * GameTransactionsController constructor.
@@ -76,26 +79,50 @@ class GameTransactionsController extends Controller {
     {
         date_default_timezone_set('Africa/Lagos'); //set choice timezone
         $transactions = $request->json()->all();
-        try {
-            foreach ($transactions as $transaction) {
-                $Transaction = new GameTransaction();
-                $Transaction->create($transaction);
-                if ($Transaction) {
-                    $this->status = 200;
-                    $this->message = 'success';
-                } else {
-                    $this->status = 400;
-                    $this->message = 'failed';
+        $usersid = $transactions[0]['users_id'];
+        $Userinfo = User::find($usersid);
+        $status = $Userinfo->approval_status;
+        $timeNow = strtotime(date("H:i"));
+        //get draw time
+        $gameName = GameName::find($transactions[0]['game_names_id']);
+        $drawTime = strtotime($gameName->draw_time);
+
+        //get current date
+        if ($status == 'APPROVED') {
+            try {
+                foreach ($transactions as $transaction) {
+//                    //get game date played
+//                    $transaction = (object)$transaction;
+//                    $timeHrPlayed = $transaction->time_played;
+//                    $transaction = (array)$transaction;
+//                    $timePlayed = strtotime($timeHrPlayed);
+                    // if ($timePlayed <= $drawTime && $timePlayed <= $timeNow) {
+                    $Transaction = GameTransaction::create($transaction);
+                    if ($Transaction) {
+                        $this->status = 200;
+                        $this->message = 'success';
+                    } else {
+                        $this->status = 400;
+                        $this->message = 'failed';
+                    }
                 }
+//                    else {
+//                        $this->status = 400;
+//                        $this->message = 'failed';
+//                    }
+
+                return response()->json(array('status' => $this->status, 'message' => $this->message));
+
+            } catch (\Exception $exception) {
+                $this->status = 401;
+                $this->message = $exception->getMessage();
+                return response()->json(array('status' => $this->status, 'message' => $this->message));
             }
-            return response()->json(array('status' => $this->status, 'message' => $this->message));
-        }catch (\Exception $exception) {
-            $this->status = 401;
-            $this->message = $exception->getMessage();
-            return response()->json(array('status' => $this->status, 'message' => $this->message));
+        }
+        else {
+            return response()->json(array('status' => 401, 'message' => 'failed'));
         }
     }
-
     /**
      * Display the specified resource.
      * @param  int  $id
@@ -126,7 +153,6 @@ class GameTransactionsController extends Controller {
     {
         //
     }
-
     /**
      * Remove the specified resource from storage.
      * @param  int  $id
@@ -136,35 +162,37 @@ class GameTransactionsController extends Controller {
     {
         date_default_timezone_set('Africa/Lagos'); //set choice timezone
         $date = new DateTime;
-        $date->modify('-5 minutes');
+        $date->modify('-10 minutes');
         $formatted_date = $date->format('Y-m-d H:i:s');
         try {
-            $Transaction = GameTransaction::where('serial_no', '=', $serial_no)->where('created_at', '>=', $formatted_date)->first();
+            $Transaction = GameTransaction::where('serial_no', '=', $serial_no)->where('created_at', '>=', $formatted_date)->get();
             if ($Transaction) {
-                $amount                 =   $Transaction->total_amount;
-                $user_id                =   $Transaction->users_id;
-                //refund the agent wallet
-                $_Credit                =   Credit::where('users_id', '=', $user_id)->first();
-                $Agent                  =   Agent::where('users_id', '=', $user_id)->first();
-                $merchantId             =   $Agent->merchants_id;
-                $user_credit_id         =   $_Credit->id;
-                $Credit                 =   Credit::find($user_credit_id);
-                $Credit->amount         =   $amount + $_Credit->amount;
-                $Credit->funded_by      =   $merchantId;
-                $Credit->users_id       =   $user_id;
-                $Credit->merchants_id   =   $merchantId;
-                $Credit->save();
-                $this->status           =   200;
-                $Game = GameTransaction::find($Transaction->id)->delete();
-                if ($Game) {
-                    return response()->json(array('status' => $this->status, 'message' => 'successful'));
+                foreach ($Transaction as $transaction) {
+                    $amount = $transaction->total_amount;
+                    $user_id = $transaction->users_id;
+                    //refund the agent wallet
+                    $_Credit = Credit::where('users_id', '=', $user_id)->first();
+                    $Agent = Agent::where('users_id', '=', $user_id)->first();
+                    $merchantId = $Agent->merchants_id;
+                    $user_credit_id = $_Credit->id;
+                    $Credit = Credit::find($user_credit_id);
+                    $Credit->amount = $amount + $_Credit->amount;
+                    $Credit->funded_by = $merchantId;
+                    $Credit->users_id = $user_id;
+                    $Credit->merchants_id = $merchantId;
+                    $Credit->save();
+                    $this->status = 200;
+                    $Game = GameTransaction::find($transaction->id)->delete();
+                    if ($Game) {
+                        return response()->json(array('status' => $this->status, 'message' => 'successful'));
+                    } else {
+                        $this->status = 201;
+                        return response()->json(array('status' => $this->status, 'message' => 'Game does not exist'));
+                    }
                 }
-                else {
-                    $this->status           = 201;
-                    return response()->json(array('status' => $this->status, 'message' => 'Game does not exist'));
-                }
-            } else {
-                $this->status           = 201;
+            }
+            else {
+                $this->status = 201;
                 return response()->json(array('status' => $this->status, 'message' => 'Game does not exist or time elapsed'));
             }
         }

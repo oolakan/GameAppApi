@@ -73,5 +73,6 @@ $app->group(['prefix'  =>  'v1/credit', 'namespace' => 'App\Http\Controllers'], 
     $app->get('/{id}', 'CreditController@index');
     $app->get('/balance/{id}/{credit}', 'CreditController@deductCredit');
     $app->get('/update/{aid}/{uid}/{amount}', 'CreditController@updateCredit');
+    $app->get('/remove/{aid}/{uid}/{amount}', 'CreditController@removeCredit');
 
 });
