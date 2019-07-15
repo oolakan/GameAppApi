@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Agent;
+use App\Credit;
 use App\Game;
 use App\GameTransaction;
 use App\Merchant;
@@ -123,16 +124,31 @@ class UserController extends Controller
 
     public function agents($mid) {
         try {
-            $Agents = Agent::with(['user'])->where('merchants_id', '=', $mid)->where('delete_status', '=', 0)->get();
-            if (count($Agents) > 0){
-                $this->status_code = 200;
-                $this->message = 'success';
-                return response()->json(array('message' => $this->message, 'status' => $this->status_code, 'Agents' => $Agents));
+            $User   =   User::find($mid);
+            if ($User) {
+                if ($User->approval_status != 'APPROVED') {
+                    return response()->json(array('status' => 400, 'data' => 'Your account has been blocked'), 400);
+
+                } else {
+                    $Agents = Agent::with(['user'])->where('agents.merchants_id', '=', $mid)
+                        ->where('delete_status', '=', 0)
+                        ->leftJoin('credits', 'agents.users_id', '=', 'credits.users_id')
+                        ->get();
+
+                    // $Agents = Agent::with(['user'])->where('merchants_id', '=', $mid)->where('delete_status', '=', 0)->get();
+                    if (count($Agents) > 0) {
+                        $this->status_code = 200;
+                        $this->message = 'success';
+                        return response()->json(array('message' => $this->message, 'status' => $this->status_code, 'Agents' => $Agents));
+                    } else {
+                        $this->status_code = 201;
+                        $this->message = 'no user available';
+                        return response()->json(array('message' => $this->message, 'status' => $this->status_code));
+                    }
+                }
             }
-            else{
-                $this->status_code = 201;
-                $this->message = 'no user available';
-                return response()->json(array('message' => $this->message, 'status' => $this->status_code));
+            else {
+                return response()->json(array('status' => 400, 'message' => 'failed'), 400);
             }
         }
         catch (\ErrorException $exception) {
@@ -149,14 +165,24 @@ class UserController extends Controller
             $User->save();
             if ($User) {
                 $this->status_code = 200;
-                $this->message = $User->name. ' has been '.strtolower($status);
+                $this->message = $User->name . ' has been ' . strtolower($status);
                 //GET merchat id
                 $mid = Agent::where('users_id', '=', $uid)->first()->merchants_id;
-                $Agents = Agent::with(['user'])->where('merchants_id', '=', $mid)->where('delete_status', '=', 0)->get();
-                if (count($Agents) > 0){
-                    $this->status_code = 200;
-                    $this->message = 'success';
-                    return response()->json(array('message' => $this->message, 'status' => $this->status_code, 'Agents' => $Agents));
+
+                $User = User::find($mid);
+                if ($User) {
+                    if ($User->approval_status != 'APPROVED') {
+                        return response()->json(array('status' => 400, 'data' => 'Your account has been blocked'), 400);
+                    } else {
+                        $Agents = Agent::with(['user'])->where('merchants_id', '=', $mid)->where('delete_status', '=', 0)->get();
+                        if (count($Agents) > 0) {
+                            $this->status_code = 200;
+                            $this->message = 'success';
+                            return response()->json(array('message' => $this->message, 'status' => $this->status_code, 'Agents' => $Agents));
+                        }
+                    }
+                } else {
+                    return response()->json(array('status' => 400, 'message' => 'Your account has been blocked'), 400);
                 }
             } else {
                 $this->status_code = 200;
@@ -210,8 +236,6 @@ class UserController extends Controller
             ->where('password', '=', md5($request->password))
             ->where('delete_status', '=', 0)
             ->first();
-
-
         if ($User) {
             //if user is an agent
             if ($User->roles_id == 3) {

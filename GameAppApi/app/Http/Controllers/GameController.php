@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Agent;
 use App\Day;
 use App\Game;
 use App\GameName;
@@ -9,6 +10,7 @@ use App\GameQuater;
 use App\GameTransaction;
 use App\GameType;
 use App\GameTypeOption;
+use App\User;
 use App\Winning;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Http\Request;
@@ -64,7 +66,6 @@ class GameController extends Controller
             response()->json(['mesage' => $ex->getMessage()]);
         }
     }
-
     /**
      * @param $day
      * @param $date
@@ -74,57 +75,136 @@ class GameController extends Controller
      */
     public function getGamesStatistics($day, $date, $userid)
     {
-        $dayOfWeek = Day::where('name', '=', $day)->first();
-        $dayOfWeekId = $dayOfWeek->id;
-        $GamesOfDay = GameName::where('days_id', '=', $dayOfWeekId)->get();
-        $main_array = array(); //Your array that you want to push the value into
-        $total = 0;
-        $winning = 0;
-        array_push($main_array, array('name'=> 'Name', 'TotalAmount' => 'Sales',
-            'WinningAmount' => 'Winnings'));
-        for ($i = 0; $i < count($GamesOfDay); $i++) {
-            $TotalAmount = GameTransaction::with(['game_name'])
-                ->where('users_id', '=', $userid)
-                ->where('game_names_id', '=', $GamesOfDay[$i]->id)
-                ->where('date_played','=', $date )->sum('total_amount');
+        $User   =   Agent::where('users_id', '=', $userid)->first();
+        $merchantId = $User->merchants_id;
+        $User   =   User::find($merchantId);
+        if ($User) {
+            if ($User->approval_status != 'APPROVED') {
+                return response()->json(array('status' => 400, 'data' => 'Your account has been blocked'), 400);
 
-            $WinningAmount = GameTransaction::with(['game_name'])
-                ->where('users_id', '=', $userid)
-                ->where('game_names_id', '=', $GamesOfDay[$i]->id)
-                ->where('date_played','=', $date )->sum('winning_amount');
+            } else {
+                $dayOfWeek = Day::where('name', '=', $day)->first();
+                $dayOfWeekId = $dayOfWeek->id;
+                $GamesOfDay = GameName::where('days_id', '=', $dayOfWeekId)->get();
+                $main_array = array(); //Your array that you want to push the value into
+                $total = 0;
+                $winning = 0;
+                array_push($main_array, array('name' => 'Name', 'TotalAmount' => 'Sales',
+                    'WinningAmount' => 'Winnings'));
+                for ($i = 0; $i < count($GamesOfDay); $i++) {
+                    $TotalAmount = GameTransaction::with(['game_name'])
+                        ->where('users_id', '=', $userid)
+                        ->where('game_names_id', '=', $GamesOfDay[$i]->id)
+                        ->where('date_played', '=', $date)->sum('total_amount');
 
-           // array_push($main_array, array($GamesOfDay[$i]->name => number_format($TotalAmount, 2, '.', ',')));
+                    $WinningAmount = GameTransaction::with(['game_name'])
+                        ->where('users_id', '=', $userid)
+                        ->where('game_names_id', '=', $GamesOfDay[$i]->id)
+                        ->where('date_played', '=', $date)->sum('winning_amount');
 
-            array_push($main_array, array('name' => $GamesOfDay[$i]->name, 'TotalAmount' => number_format($TotalAmount, 2, '.', ','),
-                'WinningAmount' => $WinningAmount));
+                    // array_push($main_array, array($GamesOfDay[$i]->name => number_format($TotalAmount, 2, '.', ',')));
 
-            $total += $TotalAmount;
-            $winning += $WinningAmount;
+                    array_push($main_array, array('name' => $GamesOfDay[$i]->name, 'TotalAmount' => number_format($TotalAmount, 2, '.', ','),
+                        'WinningAmount' => $WinningAmount));
+
+                    $total += $TotalAmount;
+                    $winning += $WinningAmount;
+                }
+                //return response()->json($total);
+                array_push($main_array, array('name' => 'Total', 'TotalAmount' => number_format($total, 2, '.', ','),
+                    'WinningAmount' => number_format($winning, 2, '.', ',')));
+                return response()->json(array('status' => 200, 'data' => $main_array));
+            }
         }
-        //return response()->json($total);
-        array_push($main_array, array('name'=> 'Total', 'TotalAmount' => number_format($total, 2, '.', ','),
-            'WinningAmount' => number_format($winning, 2, '.', ',')));
-
-        return response()->json(array('status' => 200, 'data' => $main_array));
+        else {
+            return response()->json(array('status' => 400, 'message' => 'Your account has been blocked'), 400);
+        }
     }
+
+
+    /**
+     * @param $day
+     * @param $date
+     * @param $userid
+     * @return \Illuminate\Http\JsonResponse|\Symfony\Component\HttpFoundation\Response
+     * Get game sales transactions
+     */
+    public function getAgentsGamesStatistics($from, $to, $mid)
+    {
+        $User   =   User::find($mid);
+        if ($User) {
+            if ($User->approval_status != 'APPROVED') {
+                return response()->json(array('status' => 400, 'data' => 'Your account has been blocked'), 400);
+
+            } else {
+                $main_array = array(); //Your array that you want to push the value into
+                $total = 0;
+                $winning = 0;
+                $Agents = Agent::with(['user'])->where('agents.merchants_id', '=', $mid)
+                    ->where('delete_status', '=', 0)
+                    ->get();
+
+                array_push($main_array, array('name' => 'Name', 'TotalAmount' => 'Sales',
+                    'WinningAmount' => 'Winnings'));
+                for ($i = 0; $i < count($Agents); $i++) {
+                    $TotalAmount = GameTransaction::with(['game_name'])
+                        ->where('users_id', '=', $Agents[$i]->user->id)
+                        ->whereBetween('date_played', array($from, $to))
+                        ->sum('total_amount');
+
+                    $WinningAmount = GameTransaction::with(['game_name'])
+                        ->where('users_id', '=', $Agents[$i]->user->id)
+                        ->whereBetween('date_played', array($from, $to))
+                        ->sum('winning_amount');
+
+                    array_push($main_array, array('name' => $Agents[$i]->agent_name, 'TotalAmount' => number_format($TotalAmount, 2, '.', ','),
+                        'WinningAmount' => number_format($WinningAmount, 2, '.', ',')));
+
+                    $total += $TotalAmount;
+                    $winning += $WinningAmount;
+                }
+                array_push($main_array, array('name' => 'Total', 'TotalAmount' => number_format($total, 2, '.', ','),
+                    'WinningAmount' => number_format($winning, 2, '.', ',')));
+
+                return response()->json(array('status' => 200, 'message' => 'successful', 'data' => $main_array));
+            }
+        }
+        else {
+            return response()->json(array('status' => 400, 'message' => 'Your account has been blocked'), 400);
+        }
+    }
+
+
     /**
      * @return \Illuminate\Http\JsonResponse|\Symfony\Component\HttpFoundation\Response
      *
      */
-    public function allGames()
+    public function allGames($uid)
     {
         try {
-            $today = date('l');
-            $dayOfWeek      =   Day::where('name', '=', $today)->first();
-            $dayOfWeekId    =   $dayOfWeek->id;
-            // $GameNames    =   GameName::where('days_id', '=', $dayOfWeekId)->get();
-            $GameNames      =   GameName::with(['day', 'quater'])->get();
-            $GameTypes = GameType::all();
-            $GameTypeOptions = GameTypeOption::all();
-            $GameQuaters = GameQuater::all();
-            return response()->json(['GameNames' => $GameNames, 'GameTypes' => $GameTypes,
-                'GameTypeOptions' => $GameTypeOptions,
-                'GameQuaters' => $GameQuaters]);
+            $User   =   User::find($uid);
+            if ($User) {
+                if ($User->approval_status != 'APPROVED') {
+                    return response()->json(array('status' => 400, 'data' => 'Your account has been blocked'), 400);
+
+                } else {
+                    $today = date('l');
+                    $dayOfWeek = Day::where('name', '=', $today)->first();
+                    $dayOfWeekId = $dayOfWeek->id;
+                    // $GameNames    =   GameName::where('days_id', '=', $dayOfWeekId)->get();
+                    $GameNames = GameName::with(['day', 'quater'])->get();
+                    $GameTypes = GameType::all();
+                    $GameTypeOptions = GameTypeOption::all();
+                    $GameQuaters = GameQuater::all();
+                    return response()->json(['GameNames' => $GameNames, 'GameTypes' => $GameTypes,
+                        'GameTypeOptions' => $GameTypeOptions,
+                        'GameQuaters' => $GameQuaters]);
+                }
+            }
+            else {
+                return response()->json(array('status' => 400, 'data' => 'Account not found'), 400);
+
+            }
         } catch (\ErrorException $ex){
             response()->json(['mesage' => $ex->getMessage()]);
         }
@@ -135,16 +215,27 @@ class GameController extends Controller
      * @param $id
      * @return \Illuminate\Http\JsonResponse|\Symfony\Component\HttpFoundation\Response
      */
-    public function block($status, $id)
+    public function block($status, $id, $uid)
     {
         try {
-            $GameNames      =   GameName::find($id);
-            $GameNames->game_status =   $status;
-            $GameNames->save();
-            if ($GameNames)
-                return response()->json(['status' => 200, 'message' => 'successful']);
-            else
-                return response()->json(['status' => 400, 'message' => 'failed']);
+            $User   =   User::find($uid);
+            if ($User) {
+                if ($User->approval_status != 'APPROVED') {
+                    return response()->json(array('status' => 400, 'data' => 'Your account has been blocked'), 400);
+
+                } else {
+                    $GameNames = GameName::find($id);
+                    $GameNames->game_status = $status;
+                    $GameNames->save();
+                    if ($GameNames)
+                        return response()->json(['status' => 200, 'message' => 'successful']);
+                    else
+                        return response()->json(['status' => 400, 'message' => 'failed']);
+                }
+            }
+            else{
+                return response()->json(array('status' => 400, 'data' => 'Record not found'), 400);
+            }
         } catch (\ErrorException $ex){
             response()->json(['message' => $ex->getMessage()]);
         }
@@ -224,7 +315,8 @@ class GameController extends Controller
 
     public function validateGame($serial_no) {
         try{
-            $Transactions    =   GameTransaction::where('serial_no', '=', $serial_no)->get();
+            $Transactions    =   GameTransaction::where('serial_no', '=', $serial_no)->paginate(500);
+
             foreach ($Transactions as $transaction) {
                 $gameNameId = $transaction->game_names_id;
                 $datePlayed = $transaction->date_played;

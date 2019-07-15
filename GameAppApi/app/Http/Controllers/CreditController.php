@@ -43,24 +43,39 @@ class CreditController extends Controller
      * @return \Illuminate\Http\JsonResponse|\Symfony\Component\HttpFoundation\Response
      * DEDUCT CREDIT FOR GAME PLAYED
      */
-    public function deductCredit($uid, $credit) {
+    public function deductCredit($uid, $credit)
+    {
         try {
-        $this->status = 200;
-        $this->message = 'success';
-        $Credit = Credit::where('users_id', '=', $credit)->first();
-        $creditBalance = $Credit->amount - $uid;
-        $NewCredit = Credit::find($Credit->id);
-        $NewCredit->amount = $creditBalance;
-        $NewCredit->save();
+            $this->status = 200;
+            $this->message = 'success';
+            $Userinfo = User::find($credit);
+            $status = $Userinfo->approval_status;
+            if ($status == 'APPROVED') {
+                $_Agent = Agent::where('users_id', '=', $credit)->where('delete_status', '=', 0)->first();
+                if ($_Agent) {
+                    $Credit = Credit::where('users_id', '=', $credit)->first();
+                    $creditBalance = $Credit->amount - $uid;
+                    $NewCredit = Credit::find($Credit->id);
+                    $NewCredit->amount = $creditBalance;
+                    $NewCredit->save();
 
-        $_Agent = Agent::where('users_id', '=', $credit)->first();
-        $Agent = Agent::find($_Agent->id);
-        $Agent->credit_balance = $_Agent->credit_balance - $uid;
-        $Agent->save();
+                    $_Agent = Agent::where('users_id', '=', $credit)->first();
+                    $Agent = Agent::find($_Agent->id);
+                    $Agent->credit_balance = $_Agent->credit_balance - $uid;
+                    $Agent->save();
 
-        if ($Credit) {
-            return response()->json(array('status' => $this->status, 'uid'=> $uid, 'message' => $this->message,  'Credit' => $NewCredit));
-        }
+                    if ($Credit) {
+                        return response()->json(array('status' => $this->status, 'uid' => $uid, 'message' => $this->message, 'Credit' => $NewCredit));
+                    }
+                } else {
+                    $this->status = 400;
+                    $this->message = 'failed';
+                    return response()->json(array('status' => $this->status, 'message' => 'Your account has been deleted'));
+                }
+            }
+            else {
+                return response()->json(array('status' => $this->status, 'message' => 'Your account has been blocked'));
+            }
         } catch (\ErrorException $ex) {
             $this->status = 400;
             $this->message = 'failed';
@@ -83,7 +98,7 @@ class CreditController extends Controller
             $merchantId = $Agent->merchants_id;
             //check if merchant have enough money in wallet
             $MerchantBalance = Credit::where('users_id', '=', $merchantId)->first();
-            if ($MerchantBalance) {
+            if ($_Credit->amount >= $amount) {
                 if ($_Credit) {
                     $this->user_credit_id = $_Credit->id;
                     $this->Credit = Credit::find($this->user_credit_id);
@@ -106,7 +121,7 @@ class CreditController extends Controller
                 $Agent->save();
             } else {
                 $this->status = 400;
-                $this->message = 'Insufficient credit balance';
+                $this->message = 'Agent has insufficient credit balance';
                 return response()->json(array('status' => $this->status, 'message' => $this->message));
             }
             if ($this->Credit) {
@@ -134,7 +149,7 @@ class CreditController extends Controller
             $merchantId         =   $Agent->merchants_id;
             //check if merchant have enough money in wallet
             $MerchantBalance    =   Credit::where('users_id', '=', $merchantId)->first();
-            if ($MerchantBalance){
+            if ($MerchantBalance) {
                 if (doubleval($MerchantBalance->amount) >= doubleval($amount)){
                     if ($_Credit) {
                         $this->user_credit_id = $_Credit->id;
