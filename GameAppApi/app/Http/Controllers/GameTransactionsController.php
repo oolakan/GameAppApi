@@ -93,6 +93,10 @@ class GameTransactionsController extends Controller {
         $gameName = GameName::find($transactions[0]['game_names_id']);
         $drawTime = strtotime($gameName->draw_time);
         //get current date
+        $version    =   $request->has('version') ? $request->query('version') : 'old';
+        if ($version != '3') {
+            return response()->json(array('status' => 400, 'message' => 'failed'), 400);
+        }
         if ($status == 'APPROVED') {
             try {
                 foreach ($transactions as $transaction) {

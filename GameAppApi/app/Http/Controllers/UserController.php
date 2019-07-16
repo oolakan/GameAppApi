@@ -122,9 +122,13 @@ class UserController extends Controller
         return response()->json(array('Users' => $User));
     }
 
-    public function agents($mid) {
+    public function agents(Request $request, $mid) {
         try {
             $User   =   User::find($mid);
+            $version    = $request->has('version') ? $request->query('version') : 'old';
+            if ($version != '3') {
+                return response()->json(array('status' => 400, 'message' => 'failed'), 400);
+            }
             if ($User) {
                 if ($User->approval_status != 'APPROVED') {
                     return response()->json(array('status' => 400, 'data' => 'Your account has been blocked'), 400);
@@ -134,7 +138,6 @@ class UserController extends Controller
                         ->where('delete_status', '=', 0)
                         ->leftJoin('credits', 'agents.users_id', '=', 'credits.users_id')
                         ->get();
-
                     // $Agents = Agent::with(['user'])->where('merchants_id', '=', $mid)->where('delete_status', '=', 0)->get();
                     if (count($Agents) > 0) {
                         $this->status_code = 200;
